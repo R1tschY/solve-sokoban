@@ -28,9 +28,7 @@ fn main() {
             } == Move::new(Pos::new(4, 3), Pos::new(3, 3))
         );
     } else {
-        if let Some(moves) = Solver::new().solve(&map, 13) {
-            let solution = Solution::new(moves);
-
+        if let Some(solution) = Solver::new().solve(&map, 19) {
             println!("{:?}", solution.costs());
 
             let mut map = map.clone();
@@ -46,10 +44,11 @@ fn main() {
 }
 
 struct Solver {
-    solutions: usize,
+    rest_possibilities: usize,
     steps: usize,
     tried: HashMap<SolveState, Costs>,
     moves: Vec<Move>,
+    solutions: Vec<Solution>,
 
     moves_search: Vec<Move>,
 }
@@ -58,23 +57,30 @@ impl Solver {
     fn new() -> Self {
         Self {
             steps: 0,
-            solutions: 0,
+            rest_possibilities: 0,
             tried: HashMap::new(),
             moves: Vec::new(),
+            solutions: Vec::new(),
             moves_search: Vec::new(),
         }
     }
 
-    fn solve(mut self, map: &Map, ttl: usize) -> Option<Vec<Move>> {
-        let moves = self.internal_solve(map, ttl);
+    fn solve(mut self, map: &Map, ttl: usize) -> Option<Solution> {
+        self.internal_solve(map, ttl);
         println!(
             " ==> Stats: Steps={} RestPossibilities={}",
-            self.steps, self.solutions
+            self.steps, self.rest_possibilities
         );
-        moves
+        if self.solutions.is_empty() {
+            None
+        } else {
+            println!("Found {} solutions", self.solutions.len());
+            self.solutions.sort_by_key(|solution| solution.costs());
+            self.solutions.into_iter().next()
+        }
     }
 
-    fn internal_solve(&mut self, map: &Map, ttl: usize) -> Option<Vec<Move>> {
+    fn internal_solve(&mut self, map: &Map, ttl: usize) {
         let debug = if !self.moves_search.is_empty() && self.moves_search == self.moves {
             println!("State!\n{}", map);
             true
@@ -86,12 +92,13 @@ impl Solver {
             if debug {
                 println!("Solved!");
             }
-            return Some(vec![]);
+            self.solutions.push(Solution::new(self.moves.clone()));
+            return;
         }
 
         if ttl == 0 && !debug {
-            self.solutions += 1;
-            return None;
+            self.rest_possibilities += 1;
+            return;
         }
 
         let current_costs = Costs::new(&self.moves);
@@ -100,7 +107,7 @@ impl Solver {
                 if debug {
                     println!("I was already here!");
                 }
-                return None;
+                return;
             }
             if debug {
                 println!("I have less costs!");
@@ -120,14 +127,9 @@ impl Solver {
             } else {
                 self.steps += 1;
                 self.moves.push(*m);
-                if let Some(mut moves) = self.internal_solve(&map, ttl - 1) {
-                    moves.insert(0, m.clone());
-                    return Some(moves);
-                }
+                self.internal_solve(&map, ttl - 1);
                 self.moves.pop();
             }
         }
-
-        None
     }
 }
