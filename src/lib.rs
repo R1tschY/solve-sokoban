@@ -297,8 +297,8 @@ impl Move {
 
 #[derive(Copy, Clone, PartialEq, Ord, PartialOrd, Eq, Debug)]
 pub struct Costs {
-    pushes: u32,
-    moves: u32,
+    pub pushes: u32,
+    pub moves: u32,
 }
 
 impl Costs {
