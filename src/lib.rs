@@ -1,3 +1,4 @@
+use crate::algos::matrix::Matrix;
 use std::fmt;
 use std::fmt::{Formatter, Write};
 use std::hash::Hash;
@@ -121,11 +122,10 @@ impl std::str::FromStr for Input {
     }
 }
 
-#[derive(Clone)]
 struct MapProps {
     width: usize,
     height: usize,
-    map: Vec<bool>,
+    map: Matrix<bool>,
     destinations: Vec<Pos>,
 }
 
@@ -166,7 +166,7 @@ impl Map {
     pub fn is_wall(&self, pos: Pos) -> bool {
         self.props
             .map
-            .get(pos.x as usize + pos.y as usize * self.props.width)
+            .get(pos.x as usize, pos.y as usize)
             .copied()
             .unwrap_or_default()
     }
@@ -220,13 +220,18 @@ impl Map {
 
 impl From<Input> for Map {
     fn from(input: Input) -> Self {
-        let width = input.input[0].len();
+        let width = input
+            .input
+            .iter()
+            .map(|x| x.len())
+            .max()
+            .unwrap_or_default();
         let height = input.input.len();
 
-        let mut map = vec![false; width * height];
+        let mut map = Matrix::fill(false, width, height);
         for (y, line) in input.input.iter().enumerate() {
             for (x, cell) in line.iter().enumerate() {
-                map[x + width * y] = *cell == CellState::Wall;
+                map[(x, y)] = *cell == CellState::Wall;
             }
         }
 
@@ -240,7 +245,7 @@ impl From<Input> for Map {
             props: Rc::new(MapProps {
                 width,
                 height,
-                map: map.into_boxed_slice().into(),
+                map,
                 destinations,
             }),
             solve_state: SolveState {
@@ -259,7 +264,7 @@ impl fmt::Display for Map {
                     x: x as u8,
                     y: y as u8,
                 };
-                if self.props.map[x + self.props.width * y] {
+                if self.props.map[(x, y)] {
                     f.write_char('#')?;
                 } else if self.solve_state.player == pos {
                     f.write_char('@')?;

@@ -1,7 +1,8 @@
+use crate::algos::matrix::Matrix;
 use crate::{Map, Pos};
-use std::cmp::{Ordering, Reverse};
-use std::collections::BinaryHeap;
-use std::ops::{Add, Index, IndexMut};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
+use std::ops::{Index, IndexMut};
 
 pub type Cost = u16;
 
@@ -11,23 +12,17 @@ struct State {
     position: Pos,
 }
 
-struct DistMap {
-    dist: Box<[Cost]>,
-    map_width: usize,
-}
+struct DistMap(Matrix<Cost>);
 
 impl DistMap {
     pub fn new(map: &Map) -> Self {
-        Self {
-            dist: (0..map.size()).map(|_| u16::MAX).collect(),
-            map_width: map.width(),
-        }
+        Self(Matrix::fill(u16::MAX, map.width(), map.height()))
     }
 }
 
 impl IndexMut<Pos> for DistMap {
     fn index_mut(&mut self, index: Pos) -> &mut Cost {
-        &mut self.dist[index.x as usize + self.map_width * index.y as usize]
+        &mut self.0[(index.x as usize, index.y as usize)]
     }
 }
 
@@ -35,29 +30,54 @@ impl Index<Pos> for DistMap {
     type Output = Cost;
 
     fn index(&self, index: Pos) -> &Cost {
-        &self.dist[index.x as usize + self.map_width * index.y as usize]
+        &self.0[(index.x as usize, index.y as usize)]
     }
 }
 
-fn edges(map: &Map, pos: Pos) -> Vec<Pos> {
-    let mut res = Vec::with_capacity(4);
-    if map.is_free(pos.up()) {
-        res.push(pos.up());
+pub struct PathGraph {
+    edges: HashMap<Pos, Vec<Pos>>,
+}
+
+impl PathGraph {
+    pub fn new(map: &Map) -> Self {
+        let mut edges: HashMap<Pos, Vec<Pos>> =
+            HashMap::with_capacity((map.height() * map.width()) / 2);
+        for y in 0..map.height() {
+            for x in 0..map.width() {
+                let pos = Pos::new(x as u8, y as u8);
+                if !map.is_wall(pos) {
+                    edges.insert(pos, Self::calc_edges(map, pos));
+                }
+            }
+        }
+
+        Self { edges }
     }
-    if map.is_free(pos.down()) {
-        res.push(pos.down());
+
+    fn calc_edges(map: &Map, pos: Pos) -> Vec<Pos> {
+        let mut res = Vec::with_capacity(4);
+        if map.is_free(pos.up()) {
+            res.push(pos.up());
+        }
+        if map.is_free(pos.down()) {
+            res.push(pos.down());
+        }
+        if map.is_free(pos.left()) {
+            res.push(pos.left());
+        }
+        if map.is_free(pos.right()) {
+            res.push(pos.right());
+        }
+        res
     }
-    if map.is_free(pos.left()) {
-        res.push(pos.left());
+
+    pub fn edges(&self, pos: Pos) -> &[Pos] {
+        &self.edges[&pos]
     }
-    if map.is_free(pos.right()) {
-        res.push(pos.right());
-    }
-    res
 }
 
 /// Dijkstra's shortest path algorithm.
-pub fn shortest_path(map: &Map, start: Pos, goal: Pos) -> Option<u16> {
+pub fn shortest_path(map: &Map, graph: &PathGraph, start: Pos, goal: Pos) -> Option<u16> {
     let mut dist: DistMap = DistMap::new(map);
     let mut heap = BinaryHeap::new();
 
@@ -76,10 +96,10 @@ pub fn shortest_path(map: &Map, start: Pos, goal: Pos) -> Option<u16> {
             continue;
         }
 
-        for edge in edges(map, position) {
+        for edge in graph.edges(position) {
             let next = State {
                 cost: cost + 1,
-                position: edge,
+                position: edge.clone(),
             };
 
             if next.cost < dist[next.position] {

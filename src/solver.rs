@@ -1,4 +1,4 @@
-use crate::algos::dijkstra::shortest_path;
+use crate::algos::dijkstra::{shortest_path, PathGraph};
 use crate::{Costs, Map, Move, Pos, Solution, SolveState};
 use likely_stable::unlikely;
 use std::collections::HashMap;
@@ -84,17 +84,7 @@ impl Solver {
     }
 
     fn do_step(&mut self, current_state: StepState, next_states: &mut Vec<StepState>) {
-        let debug = if !self.moves_search.is_empty() && self.moves_search == current_state.moves {
-            println!("State!\n{}", current_state.map);
-            true
-        } else {
-            false
-        };
-
         if unlikely(current_state.map.is_solved()) {
-            if debug {
-                println!("Solved!");
-            }
             self.solutions
                 .push(Solution::new(current_state.moves, current_state.costs));
             return;
@@ -102,35 +92,20 @@ impl Solver {
 
         if let Some(costs) = self.tried.get(current_state.map.solve_state()) {
             if current_state.costs >= *costs {
-                if debug {
-                    println!("I was already here!");
-                }
                 return;
-            }
-            if debug {
-                println!("I have less costs!");
             }
         }
         self.tried
             .insert(current_state.map.solve_state().clone(), current_state.costs);
 
+        let path_graph = PathGraph::new(&current_state.map);
+
         let possible_moves = current_state.map.possible_moves();
         next_states.reserve(possible_moves.len());
         for m in possible_moves.iter() {
-            if debug {
-                let mut map = current_state.map.clone();
-                map.apply_move(*m);
-                println!();
-                println!("Possible Move:");
-                println!("{}", map);
-            }
-
             if !current_state.map.is_destination(m.end)
                 && !current_state.map.is_box_movable_at(m.end)
             {
-                if debug {
-                    println!("Is a deadlock");
-                }
                 continue;
             }
 
@@ -141,36 +116,29 @@ impl Solver {
 
             let moves_cost = if let Some(cost) = shortest_path(
                 &current_state.map,
+                &path_graph,
                 current_state.map.player(),
                 next_player_pos,
             ) {
-                if debug {
-                    println!("Moves: {}", cost);
-                }
                 cost
             } else {
-                if debug {
-                    println!("No way!");
-                }
                 continue;
             };
 
             let mut map = current_state.map.clone();
             map.apply_move(*m);
 
-            if !debug {
-                self.steps += 1;
-                let mut next_moves = current_state.moves.clone();
-                next_moves.push(*m);
-                next_states.push(StepState {
-                    moves: next_moves,
-                    map,
-                    costs: Costs {
-                        pushes: current_state.costs.pushes + 1,
-                        moves: current_state.costs.moves + moves_cost + 1,
-                    },
-                });
-            }
+            self.steps += 1;
+            let mut next_moves = current_state.moves.clone();
+            next_moves.push(*m);
+            next_states.push(StepState {
+                moves: next_moves,
+                map,
+                costs: Costs {
+                    pushes: current_state.costs.pushes + 1,
+                    moves: current_state.costs.moves + moves_cost + 1,
+                },
+            });
         }
     }
 
