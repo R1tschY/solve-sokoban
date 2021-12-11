@@ -12,4 +12,4 @@ codegen-units = 1
 opt-level = 3
 
 [dependencies]
-priority-queue = "1.2.1"
+likely_stable = "0.1"

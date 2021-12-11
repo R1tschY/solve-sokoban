@@ -3,6 +3,10 @@ use std::fmt::{Formatter, Write};
 use std::hash::Hash;
 use std::rc::Rc;
 
+pub mod algos;
+
+pub mod solver;
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum CellState {
     Empty,
@@ -19,7 +23,7 @@ impl CellState {
         use CellState::*;
 
         match c {
-            ' ' => Ok(Empty),
+            ' ' | '-' | '_' => Ok(Empty),
             '#' => Ok(Wall),
             '@' => Ok(Player),
             '$' => Ok(Box),
@@ -147,6 +151,14 @@ impl Map {
         moves
     }
 
+    pub fn is_box_movable_at(&self, pos: Pos) -> bool {
+        let up_free = !self.is_wall(pos.up());
+        let down_free = !self.is_wall(pos.down());
+        let left_free = !self.is_wall(pos.left());
+        let right_free = !self.is_wall(pos.right());
+        (up_free && down_free) || (left_free && right_free)
+    }
+
     pub fn is_free(&self, pos: Pos) -> bool {
         !self.is_wall(pos) && !self.solve_state.boxes.contains(&pos)
     }
@@ -159,8 +171,13 @@ impl Map {
             .unwrap_or_default()
     }
 
+    pub fn is_destination(&self, pos: Pos) -> bool {
+        self.props.destinations.contains(&pos)
+    }
+
     pub fn apply_move(&mut self, m: Move) {
         self.solve_state.apply_move(m);
+        self.solve_state.player = m.start;
     }
 
     pub fn is_solved(&self) -> bool {
@@ -182,6 +199,23 @@ impl Map {
     pub fn player(&self) -> Pos {
         self.solve_state.player
     }
+
+    pub fn height(&self) -> usize {
+        self.props.height
+    }
+
+    pub fn width(&self) -> usize {
+        self.props.width
+    }
+
+    pub fn size(&self) -> usize {
+        self.props.width * self.props.height
+    }
+
+    pub fn set_player_pos(&mut self, pos: Pos) {
+        // TODO: remove me
+        self.solve_state.player = pos;
+    }
 }
 
 impl From<Input> for Map {
@@ -190,8 +224,8 @@ impl From<Input> for Map {
         let height = input.input.len();
 
         let mut map = vec![false; width * height];
-        for (x, line) in input.input.iter().enumerate() {
-            for (y, cell) in line.iter().enumerate() {
+        for (y, line) in input.input.iter().enumerate() {
+            for (x, cell) in line.iter().enumerate() {
                 map[x + width * y] = *cell == CellState::Wall;
             }
         }
@@ -249,6 +283,12 @@ pub struct Pos {
     pub y: u8,
 }
 
+impl fmt::Display for Pos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{}x{}", self.x, self.y))
+    }
+}
+
 impl Pos {
     pub fn new(x: u8, y: u8) -> Self {
         Self { x, y }
@@ -297,16 +337,17 @@ impl Move {
 
 #[derive(Copy, Clone, PartialEq, Ord, PartialOrd, Eq, Debug)]
 pub struct Costs {
-    pub pushes: u32,
-    pub moves: u32,
+    pub pushes: u16,
+    pub moves: u16,
 }
 
 impl Costs {
-    pub fn new(moves: &[Move]) -> Self {
-        Self {
-            pushes: moves.len() as u32,
-            moves: 0,
-        }
+    pub fn new(pushes: u16, moves: u16) -> Self {
+        Self { pushes, moves }
+    }
+
+    pub fn zero() -> Self {
+        Self::new(0, 0)
     }
 }
 
@@ -317,8 +358,7 @@ pub struct Solution {
 }
 
 impl Solution {
-    pub fn new(moves: Vec<Move>) -> Self {
-        let costs = Costs::new(&moves);
+    pub fn new(moves: Vec<Move>, costs: Costs) -> Self {
         Self { moves, costs }
     }
 
@@ -350,70 +390,3 @@ impl SolveState {
         self.boxes.sort();
     }
 }
-
-// #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-// struct AStarEdge<I: Copy + Eq> {
-//     cost: u32,
-//     node_id: I,
-// }
-//
-// pub trait AStarMap {
-//     type Index: Copy + Eq;
-//
-//     fn neighbors(&self, node: Self::Index) -> Vec<Self::Index>;
-//     fn edge_weight(&self, from: Self::Index, to: Self::Index) -> u32;
-//     fn heuristic(&self, node: Self::Index, goal: Self::Index);
-// }
-//
-// struct AStar<T, I> {
-//     open_list: BinaryHeap<AStarEdge<I>>,
-//     g_score: HashMap<I, u32>,
-//     f_score: HashMap<I, u32>,
-//     came_from: HashMap<I, I>,
-// }
-//
-// impl<M: AStarMap<Index = I>, I: Eq + Hash + Copy> AStar<M, I> {
-//     fn new() -> Self {
-//         Self {
-//             open_list: BinaryHeap::new(),
-//             g_score: Default::default(),
-//             f_score: Default::default(),
-//             came_from: Default::default(),
-//         }
-//     }
-//
-//     fn solve(mut self, map: &M, start: I, goal: I) -> Option<u32> {
-//         self.open_list.push(AStarEdge {
-//             cost: 0,
-//             node_id: start,
-//         });
-//
-//         while let Some(AStarEdge { cost, node_id }) = self.open_list.pop() {
-//             if node_id == goal {
-//                 return Some(cost);
-//             }
-//
-//             self.open_list.remove(node_id);
-//             for neighbor in map.neighbors(node_id) {
-//                 let tentative_g_score = self.g_score[node_id] + map.edge_weight(node_id, neighbor);
-//                 if tentative_g_score < self.g_score[neighbor] {
-//                     self.came_from.insert(neighbor, node_id);
-//                     self.g_score.insert(neighbor, tentative_g_score);
-//                     self.f_score
-//                         .insert(neighbor, tentative_g_score + map.heuristic(neighbor, goal));
-//                     if self.open_list.contains()
-//                 }
-//             }
-//         }
-//
-//         None
-//     }
-// }
-//
-// fn shortest_path<M: AStarMap, I: Eq + Hash + Clone + PartialEq>(
-//     map: &M,
-//     start: I,
-//     goal: I,
-// ) -> Option<u32> {
-//     AStar::new().solve(map, start, goal)
-// }
