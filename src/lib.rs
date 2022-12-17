@@ -238,6 +238,113 @@ impl Map {
         // TODO: remove me
         self.solve_state.player = pos;
     }
+
+    fn detect_dead_positions(input: &Input, width: usize, height: usize) -> Matrix<bool> {
+        let mut dead = Matrix::fill(false, width, height);
+        for (y, line) in input.input.iter().enumerate() {
+            for (x, cell) in line.iter().enumerate() {
+                if cell.is_wall() || x == 0 || y == 0 || x == width - 1 || y == height - 1 {
+                    dead[(x, y)] = true;
+                    continue
+                }
+
+                // dead corner
+                if !cell.is_wall() && !cell.is_destination() {
+                    let rblocked = input.input[y][x + 1].is_wall();
+                    let lblocked = input.input[y][x - 1].is_wall();
+                    let tblocked = input.input[y - 1][x].is_wall();
+                    let bblocked = input.input[y + 1][x].is_wall();
+                    if (rblocked || lblocked) && (tblocked || bblocked) {
+                        dead[(x, y)] = true;
+                        continue
+                    }
+                }
+
+                // big dead corner
+                let left = Self::vertical_dead_end(input, y, x, -1);
+                let right = Self::vertical_dead_end(input, y, x, 1);
+                let top = Self::horizontal_dead_end(input, y, x, -1);
+                let bottom = Self::horizontal_dead_end(input, y, x, 1);
+                if left || right || top || bottom {
+                    dead[(x, y)] = true;
+                    continue
+                }
+            }
+        }
+        dead
+    }
+
+    fn vertical_dead_end(input: &Input, y: usize, x: usize, x_offset: isize) -> bool {
+        let ox = if let Some(ox) = x.checked_add_signed(x_offset) {
+            ox
+        } else {
+            return true;
+        };
+
+        let mut i = y - 1;
+        let mut top = false;
+        while i >= 0 && input.input[i][ox].is_wall() {
+            if input.input[i][x].is_destination() {
+                break
+            }
+            if input.input[i][x].is_wall() {
+                top = true;
+                break
+            }
+            i -= 1;
+        }
+
+        let mut i = y + 1;
+        let mut bottom = false;
+        while i < input.input.len() && input.input[i][ox].is_wall() {
+            if input.input[i][x].is_destination() {
+                break
+            }
+            if input.input[i][x].is_wall() {
+                bottom = true;
+                break
+            }
+            i += 1;
+        }
+
+        top && bottom
+    }
+
+    fn horizontal_dead_end(input: &Input, y: usize, x: usize, y_offset: isize) -> bool {
+        let oy = if let Some(oy) = y.checked_add_signed(y_offset) {
+            oy
+        } else {
+            return true;
+        };
+
+        let mut i = x - 1;
+        let mut left = false;
+        while i >= 0 && input.input[oy][i].is_wall() {
+            if input.input[y][i].is_destination() {
+                break
+            }
+            if input.input[y][i].is_wall() {
+                left = true;
+                break
+            }
+            i -= 1;
+        }
+
+        let mut i = x + 1;
+        let mut right = false;
+        while i < input.input[0].len() && input.input[oy][i].is_wall() {
+            if input.input[y][i].is_destination() {
+                break
+            }
+            if input.input[y][i].is_wall() {
+                right = true;
+                break
+            }
+            i += 1;
+        }
+
+        left && right
+    }
 }
 
 impl From<Input> for Map {
@@ -257,21 +364,7 @@ impl From<Input> for Map {
             }
         }
 
-        let mut dead = Matrix::fill(false, width, height);
-        for (y, line) in input.input.iter().enumerate() {
-            for (x, cell) in line.iter().enumerate() {
-                dead[(x, y)] = cell.is_wall();
-                if !cell.is_wall() && !cell.is_destination() {
-                    let rblocked = input.input[y][x + 1].is_wall();
-                    let lblocked = input.input[y][x - 1].is_wall();
-                    let tblocked = input.input[y - 1][x].is_wall();
-                    let bblocked = input.input[y + 1][x].is_wall();
-                    if (rblocked || lblocked) && (tblocked || bblocked) {
-                        dead[(x, y)] = true;
-                    }
-                }
-            }
-        }
+        let dead = Self::detect_dead_positions(&input, width, height);
 
         let mut boxes = input.get_boxes();
         boxes.sort();
