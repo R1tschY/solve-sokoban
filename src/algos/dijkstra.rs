@@ -1,16 +1,38 @@
-use crate::algos::matrix::Matrix;
-use crate::{Map, Pos};
-use std::cmp::Reverse;
+use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::ops::{Index, IndexMut};
 
+use crate::{Map, Pos};
+use crate::algos::matrix::Matrix;
+
 pub type Cost = u16;
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone)]
 struct State {
     cost: Cost,
     position: Pos,
 }
+
+impl Eq for State {}
+
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.cost.cmp(&self.cost)
+    }
+}
+
+impl PartialEq<State> for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.cost == other.cost
+    }
+}
+
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        other.cost.partial_cmp(&self.cost)
+    }
+}
+
 
 struct DistMap(Matrix<Cost>);
 
@@ -82,12 +104,12 @@ pub fn shortest_path(map: &Map, graph: &PathGraph, start: Pos, goal: Pos) -> Opt
     let mut heap = BinaryHeap::new();
 
     dist[start] = 0;
-    heap.push(Reverse(State {
+    heap.push(State {
         cost: 0,
         position: start,
-    }));
+    });
 
-    while let Some(Reverse(State { cost, position })) = heap.pop() {
+    while let Some(State { cost, position }) = heap.pop() {
         if position == goal {
             return Some(cost);
         }
@@ -103,7 +125,7 @@ pub fn shortest_path(map: &Map, graph: &PathGraph, start: Pos, goal: Pos) -> Opt
             };
 
             if next.cost < dist[next.position] {
-                heap.push(Reverse(next));
+                heap.push(next);
                 dist[next.position] = next.cost;
             }
         }
