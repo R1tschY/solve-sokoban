@@ -63,7 +63,7 @@ impl Solver {
         let start = Instant::now();
         let mut states: Vec<StepState> = vec![StepState::start(map.clone())];
         for i in 0..=ttl {
-            states = self.round(states);
+            states = self.step(states);
             println!(
                 "{}: {} {} ({:?})",
                 i,
@@ -75,7 +75,7 @@ impl Solver {
         self.rest_possibilities = states.len();
     }
 
-    fn round(&mut self, states: Vec<StepState>) -> Vec<StepState> {
+    fn step(&mut self, states: Vec<StepState>) -> Vec<StepState> {
         let mut next_states: Vec<StepState> = vec![];
         for state in states {
             self.do_step(state, &mut next_states);
@@ -103,12 +103,6 @@ impl Solver {
         let possible_moves = current_state.map.possible_moves();
         next_states.reserve(possible_moves.len());
         for m in possible_moves.iter() {
-            if !current_state.map.is_destination(m.end)
-                && !current_state.map.is_box_movable_at(m.end)
-            {
-                continue;
-            }
-
             let next_player_pos = Pos {
                 x: 2 * m.start.x - m.end.x,
                 y: 2 * m.start.y - m.end.y,

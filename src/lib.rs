@@ -46,6 +46,19 @@ impl CellState {
             CellState::PlayerOnDestination => '+',
         }
     }
+
+    pub fn is_wall(self) -> bool {
+        self == CellState::Wall
+    }
+
+    pub fn is_destination(self) -> bool {
+        match self {
+            CellState::Destination => true,
+            CellState::BoxOnDestination => true,
+            CellState::PlayerOnDestination => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -126,6 +139,7 @@ struct MapProps {
     width: usize,
     height: usize,
     map: Matrix<bool>,
+    dead: Matrix<bool>,
     destinations: Vec<Pos>,
 }
 
@@ -139,33 +153,41 @@ impl Map {
     pub fn possible_moves(&self) -> Vec<Move> {
         let mut moves = Vec::with_capacity(self.solve_state.boxes.len() * 4);
         for b in self.solve_state.boxes.iter().copied() {
-            if self.is_free(b.up()) && self.is_free(b.down()) {
+            if self.is_free(b.up()) && self.is_push_target(b.down()) {
                 moves.push(Move::new(b, b.down()));
+            }
+            if self.is_push_target(b.up()) && self.is_free(b.down()) {
                 moves.push(Move::new(b, b.up()));
             }
-            if self.is_free(b.left()) && self.is_free(b.right()) {
-                moves.push(Move::new(b, b.right()));
+            if self.is_push_target(b.left()) && self.is_free(b.right()) {
                 moves.push(Move::new(b, b.left()));
+            }
+            if self.is_free(b.left()) && self.is_push_target(b.right()) {
+                moves.push(Move::new(b, b.right()));
             }
         }
         moves
-    }
-
-    pub fn is_box_movable_at(&self, pos: Pos) -> bool {
-        let up_free = !self.is_wall(pos.up());
-        let down_free = !self.is_wall(pos.down());
-        let left_free = !self.is_wall(pos.left());
-        let right_free = !self.is_wall(pos.right());
-        (up_free && down_free) || (left_free && right_free)
     }
 
     pub fn is_free(&self, pos: Pos) -> bool {
         !self.is_wall(pos) && !self.solve_state.boxes.contains(&pos)
     }
 
+    pub fn is_push_target(&self, pos: Pos) -> bool {
+        !self.is_dead(pos) && !self.solve_state.boxes.contains(&pos)
+    }
+
     pub fn is_wall(&self, pos: Pos) -> bool {
         self.props
             .map
+            .get(pos.x as usize, pos.y as usize)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub fn is_dead(&self, pos: Pos) -> bool {
+        self.props
+            .dead
             .get(pos.x as usize, pos.y as usize)
             .copied()
             .unwrap_or_default()
@@ -231,7 +253,23 @@ impl From<Input> for Map {
         let mut map = Matrix::fill(false, width, height);
         for (y, line) in input.input.iter().enumerate() {
             for (x, cell) in line.iter().enumerate() {
-                map[(x, y)] = *cell == CellState::Wall;
+                map[(x, y)] = cell.is_wall();
+            }
+        }
+
+        let mut dead = Matrix::fill(false, width, height);
+        for (y, line) in input.input.iter().enumerate() {
+            for (x, cell) in line.iter().enumerate() {
+                dead[(x, y)] = cell.is_wall();
+                if !cell.is_wall() && !cell.is_destination() {
+                    let rblocked = input.input[y][x + 1].is_wall();
+                    let lblocked = input.input[y][x - 1].is_wall();
+                    let tblocked = input.input[y - 1][x].is_wall();
+                    let bblocked = input.input[y + 1][x].is_wall();
+                    if (rblocked || lblocked) && (tblocked || bblocked) {
+                        dead[(x, y)] = true;
+                    }
+                }
             }
         }
 
@@ -246,6 +284,7 @@ impl From<Input> for Map {
                 width,
                 height,
                 map,
+                dead,
                 destinations,
             }),
             solve_state: SolveState {
@@ -266,14 +305,16 @@ impl fmt::Display for Map {
                 };
                 if self.props.map[(x, y)] {
                     f.write_char('#')?;
+                } else if self.props.dead[(x, y)] {
+                    f.write_char('~')?;
                 } else if self.solve_state.player == pos {
                     f.write_char('@')?;
                 } else if self.solve_state.boxes.contains(&pos) {
                     f.write_char('o')?;
                 } else if self.props.destinations.contains(&pos) {
-                    f.write_char('!')?;
-                } else {
                     f.write_char('.')?;
+                } else {
+                    f.write_char(' ')?;
                 }
             }
             f.write_char('\n')?;
