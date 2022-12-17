@@ -4,12 +4,12 @@ use solve_sokoban::{Costs, Input, Map, Pos};
 use std::str::FromStr;
 
 fn main() {
-    //let input = Input::from_str(include_str!("levels/level2.txt"));
-    let input = Input::from_str(include_str!("../tests/xsokoban/screen.2"));
+    let input = Input::from_str(include_str!("../tests/ttac2021/level2.txt"));
+    // let input = Input::from_str(include_str!("../tests/xsokoban/screen.1"));
     let map = Map::from(input.unwrap());
 
     println!("Map:\n{}", map);
-    if let Some(solution) = Solver::new().solve(&map, 20) {
+    if let Some(solution) = Solver::new().solve(&map) {
         println!("{:?}", solution.costs());
 
         let mut costs = Costs::zero();

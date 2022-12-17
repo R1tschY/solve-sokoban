@@ -282,12 +282,10 @@ impl Map {
         } else {
             return true;
         };
-        assert_ne!(y, 0);
-        assert_ne!(x, 0);
 
         let mut i = y - 1;
         let mut top = false;
-        while i >= 0 && input.input[i][ox].is_wall() {
+        while input.input[i][ox].is_wall() {
             if input.input[i][x].is_destination() {
                 break
             }
@@ -323,7 +321,7 @@ impl Map {
 
         let mut i = x - 1;
         let mut left = false;
-        while i >= 0 && input.input[oy][i].is_wall() {
+        while input.input[oy][i].is_wall() {
             if input.input[y][i].is_destination() {
                 break
             }

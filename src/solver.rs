@@ -1,7 +1,8 @@
+use std::cmp::Ordering;
 use crate::algos::dijkstra::{shortest_path, PathGraph};
 use crate::{Costs, Map, Move, Pos, Solution, SolveState};
 use likely_stable::unlikely;
-use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashMap};
 use std::time::{Duration, Instant};
 
 struct StepState {
@@ -9,6 +10,27 @@ struct StepState {
     map: Map,
     costs: Costs,
 }
+
+impl Eq for StepState {}
+
+impl Ord for StepState {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.costs.cmp(&self.costs)
+    }
+}
+
+impl PartialEq<StepState> for StepState {
+    fn eq(&self, other: &Self) -> bool {
+        self.costs == other.costs
+    }
+}
+
+impl PartialOrd for StepState {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        other.costs.partial_cmp(&self.costs)
+    }
+}
+
 
 impl StepState {
     fn start(map: Map) -> Self {
@@ -25,7 +47,6 @@ pub struct Solver {
     rest_possibilities: usize,
     steps: usize,
     tried: HashMap<SolveState, Costs>,
-    solutions: Vec<Solution>,
 
     pub moves_search: Vec<Move>,
 }
@@ -37,62 +58,42 @@ impl Solver {
             steps: 0,
             rest_possibilities: 0,
             tried: HashMap::new(),
-            solutions: Vec::new(),
             moves_search: Vec::new(),
         }
     }
 
-    pub fn solve(mut self, map: &Map, ttl: usize) -> Option<Solution> {
+    pub fn solve(mut self, map: &Map) -> Option<Solution> {
         let start = Instant::now();
-        self.solve_iterative(map, ttl);
+        let solution = self.solve_iterative(map);
         self.duration = Some(Instant::now().duration_since(start));
         println!(
             " ==> Stats: Steps={} RestPossibilities={} Duration={:?}",
             self.steps, self.rest_possibilities, self.duration
         );
-        if self.solutions.is_empty() {
-            None
-        } else {
-            println!("Found {} solutions", self.solutions.len());
-            self.solutions.sort_by_key(|solution| solution.costs());
-            self.solutions.into_iter().next()
-        }
+        solution
     }
 
-    fn solve_iterative(&mut self, map: &Map, ttl: usize) {
-        let start = Instant::now();
-        let mut states: Vec<StepState> = vec![StepState::start(map.clone())];
-        for i in 0..=ttl {
-            states = self.step(states);
-            println!(
-                "{}: {} {} ({:?})",
-                i,
-                ".".repeat((states.len() as f32).log10() as usize),
-                states.len(),
-                Instant::now().duration_since(start)
-            )
+    fn solve_iterative(&mut self, map: &Map) -> Option<Solution> {
+        let mut queue = BinaryHeap::<StepState>::new();
+        queue.push(StepState::start(map.clone()));
+
+        while let Some(state) = queue.pop() {
+            if let Some(solution) = self.do_step(state, &mut queue) {
+                return Some(solution);
+            }
         }
-        self.rest_possibilities = states.len();
+
+        None
     }
 
-    fn step(&mut self, states: Vec<StepState>) -> Vec<StepState> {
-        let mut next_states: Vec<StepState> = vec![];
-        for state in states {
-            self.do_step(state, &mut next_states);
-        }
-        next_states
-    }
-
-    fn do_step(&mut self, current_state: StepState, next_states: &mut Vec<StepState>) {
+    fn do_step(&mut self, current_state: StepState, next_states: &mut BinaryHeap<StepState>) -> Option<Solution> {
         if unlikely(current_state.map.is_solved()) {
-            self.solutions
-                .push(Solution::new(current_state.moves, current_state.costs));
-            return;
+            return Some(Solution::new(current_state.moves, current_state.costs));
         }
 
         if let Some(costs) = self.tried.get(current_state.map.solve_state()) {
             if current_state.costs >= *costs {
-                return;
+                return None;
             }
         }
         self.tried
@@ -134,5 +135,7 @@ impl Solver {
                 },
             });
         }
+
+        None
     }
 }
