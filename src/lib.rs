@@ -249,7 +249,7 @@ impl Map {
                 }
 
                 // dead corner
-                if !cell.is_wall() && !cell.is_destination() {
+                if !cell.is_destination() {
                     let rblocked = input.input[y][x + 1].is_wall();
                     let lblocked = input.input[y][x - 1].is_wall();
                     let tblocked = input.input[y - 1][x].is_wall();
@@ -261,13 +261,15 @@ impl Map {
                 }
 
                 // big dead corner
-                let left = Self::vertical_dead_end(input, y, x, -1);
-                let right = Self::vertical_dead_end(input, y, x, 1);
-                let top = Self::horizontal_dead_end(input, y, x, -1);
-                let bottom = Self::horizontal_dead_end(input, y, x, 1);
-                if left || right || top || bottom {
-                    dead[(x, y)] = true;
-                    continue
+                if !cell.is_destination() {
+                    let left = Self::vertical_dead_end(input, y, x, -1);
+                    let right = Self::vertical_dead_end(input, y, x, 1);
+                    let top = Self::horizontal_dead_end(input, y, x, -1);
+                    let bottom = Self::horizontal_dead_end(input, y, x, 1);
+                    if left || right || top || bottom {
+                        dead[(x, y)] = true;
+                        continue
+                    }
                 }
             }
         }
@@ -280,6 +282,8 @@ impl Map {
         } else {
             return true;
         };
+        assert_ne!(y, 0);
+        assert_ne!(x, 0);
 
         let mut i = y - 1;
         let mut top = false;
